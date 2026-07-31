@@ -16,7 +16,7 @@ exports.handler = async function (event, context) {
 
   const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
   const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-  const TABLE_NAME = "Steadfast Leads"; // change if your table name differs
+  const TABLE_NAME = "Table 1"; // this is your table's actual name inside the Steadfast Leads base
 
   try {
     const body = JSON.parse(event.body);
