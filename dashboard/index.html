@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Steadfast Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #0C1526; }
+  #gate {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #0C1526; font-family: system-ui, sans-serif;
+  }
+  #gate form {
+    background: #14203B; border: 1px solid #2A3557; border-radius: 10px;
+    padding: 32px 28px; width: 280px; text-align: center;
+  }
+  #gate input {
+    width: 100%; box-sizing: border-box; margin-top: 16px; padding: 10px 12px;
+    background: #0C1526; border: 1px solid #2A3557; border-radius: 6px;
+    color: #FBFAF7; font-size: 14px; outline: none;
+  }
+  #gate button {
+    width: 100%; margin-top: 12px; padding: 10px; background: #C9A24A; color: #0C1526;
+    border: none; border-radius: 6px; font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  #gate p { color: #8A8A80; font-size: 13px; margin-top: 10px; }
+  #gate-error { color: #C86B5C; font-size: 12px; margin-top: 8px; display: none; }
+</style>
+</head>
+<body>
+
+<!-- Simple passcode gate. NOTE: this is a light deterrent, not real security -->
+<!-- (anyone who views page source can find the code). Good enough to keep this -->
+<!-- unlisted page from being casually stumbled into; not meant to guard sensitive data. -->
+<div id="gate">
+  <form id="gate-form">
+    <div style="color:#C9A24A; font-weight:700; font-size:16px; letter-spacing:0.05em;">STEADFAST DASHBOARD</div>
+    <input type="password" id="gate-input" placeholder="Enter passcode" autofocus />
+    <button type="submit">Enter</button>
+    <div id="gate-error">Incorrect passcode</div>
+  </form>
+</div>
+
+<div id="root" style="display:none;"></div>
+
+<script>
+  // Change this to whatever passcode you want to use.
+  const DASHBOARD_PASSCODE = "steadfast,1";
+
+  const gateForm = document.getElementById("gate-form");
+  const gateDiv = document.getElementById("gate");
+  const rootDiv = document.getElementById("root");
+  const gateError = document.getElementById("gate-error");
+
+  // Remember unlock for this browser so you don't re-enter it every visit.
+  if (sessionStorage.getItem("steadfast-unlocked") === "true") {
+    gateDiv.style.display = "none";
+    rootDiv.style.display = "block";
+  }
+
+  gateForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    const val = document.getElementById("gate-input").value;
+    if (val === DASHBOARD_PASSCODE) {
+      sessionStorage.setItem("steadfast-unlocked", "true");
+      gateDiv.style.display = "none";
+      rootDiv.style.display = "block";
+    } else {
+      gateError.style.display = "block";
+    }
+  });
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+const COLORS = {
+  navy: "#14203B",
+  navyDeep: "#0C1526",
+  navyMid: "#1E2E52",
+  white: "#FBFAF7",
+  cream: "#F4F1E9",
+  gold: "#C9A24A",
+  goldBright: "#E0BA5F",
+  charcoal: "#2B2B28",
+  muted: "#8A8A80",
+  border: "#2A3557",
+  green: "#5A9B78",
+  red: "#C86B5C",
+};
+
+const initialTasks = [
+  { id: 1, text: "Follow up with Chad if no response by Friday", done: false },
+  { id: 2, text: "Build Jason's website + lead capture", done: false },
+  { id: 3, text: "Waiting to hear back from Colin on Arlin", done: false },
+];
+
+const initialActivity = [
+  { id: 1, date: "2026-07-20", text: "Colin working on Arlin — offered free trial for plumbing service/repair business." },
+  { id: 2, date: "2026-07-12", text: "Jason mentioned needing a website for his excavation business." },
+  { id: 3, date: "2026-07-11", text: "Sent Chad the one-pager and demo link via text." },
+  { id: 4, date: "2026-07-10", text: "Clay said contractors are 'leaking money' — validated the problem from inside the industry." },
+];
+
+const statusColors = {
+  "New Lead": COLORS.gold,
+  "Contacted": "#5B8DEF",
+  "Estimate Sent": "#E0973D",
+  "Client": COLORS.green,
+};
+
+const STATUS_OPTIONS = ["New Lead", "Contacted", "Estimate Sent", "Client"];
+
+function notesToText(notes) {
+  return notes.map((n) => `${n.date}: ${n.text}`).join("\n");
+}
+
+function SteadfastDashboard() {
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [leads, setLeads] = useState([]);
+  const [loadingLeads, setLoadingLeads] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [clients] = useState([]);
+  const [tasks, setTasks] = useState(initialTasks);
+  const [activity, setActivity] = useState(initialActivity);
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [newNote, setNewNote] = useState("");
+  const [newTask, setNewTask] = useState("");
+  const [savingLead, setSavingLead] = useState(false);
+
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  async function fetchLeads() {
+    setLoadingLeads(true);
+    setLoadError(null);
+    try {
+      const res = await fetch("/.netlify/functions/get-leads");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load leads");
+      setLeads(data.leads);
+    } catch (err) {
+      setLoadError(err.message);
+    } finally {
+      setLoadingLeads(false);
+    }
+  }
+
+  async function saveLeadUpdate(id, updates) {
+    setSavingLead(true);
+    try {
+      const res = await fetch("/.netlify/functions/update-lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updates }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save");
+      return true;
+    } catch (err) {
+      alert("Couldn't save to Airtable: " + err.message);
+      return false;
+    } finally {
+      setSavingLead(false);
+    }
+  }
+
+  function toggleTask(id) {
+    setTasks(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  }
+
+  function addTask() {
+    if (!newTask.trim()) return;
+    setTasks([...tasks, { id: Date.now(), text: newTask, done: false }]);
+    setNewTask("");
+  }
+
+  async function addNote() {
+    if (!newNote.trim() || !selectedLead) return;
+    const today = new Date().toISOString().split("T")[0];
+    const updatedNotes = [{ date: today, text: newNote }, ...selectedLead.notes];
+
+    const ok = await saveLeadUpdate(selectedLead.id, {
+      notes: notesToText(updatedNotes),
+      lastContact: today,
+    });
+    if (!ok) return;
+
+    const updated = leads.map(l =>
+      l.id === selectedLead.id
+        ? { ...l, notes: updatedNotes, lastContact: today }
+        : l
+    );
+    setLeads(updated);
+    setSelectedLead(updated.find(l => l.id === selectedLead.id));
+    setActivity([{ id: Date.now(), date: today, text: selectedLead.name + ": " + newNote }, ...activity]);
+    setNewNote("");
+  }
+
+  async function changeStatus(newStatus) {
+    if (!selectedLead || newStatus === selectedLead.status) return;
+    const ok = await saveLeadUpdate(selectedLead.id, { status: newStatus });
+    if (!ok) return;
+
+    const updated = leads.map(l =>
+      l.id === selectedLead.id ? { ...l, status: newStatus } : l
+    );
+    setLeads(updated);
+    setSelectedLead(updated.find(l => l.id === selectedLead.id));
+  }
+
+  const pendingTasks = tasks.filter(t => !t.done);
+  const allActivitySorted = [...activity].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  return (
+    <div style={{ background: COLORS.navyDeep, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", color: COLORS.white }}>
+
+      <div style={{ background: COLORS.navy, borderBottom: `1px solid ${COLORS.border}`, padding: "0 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 1200, margin: "0 auto", height: 64 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 34, height: 34, border: `1.5px solid ${COLORS.gold}`, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: COLORS.gold, fontWeight: 700 }}>S</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>STEADFAST DIGITAL SOLUTIONS</div>
+              <div style={{ fontSize: 11, color: COLORS.muted, letterSpacing: "0.05em" }}>RYAN'S DASHBOARD</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: loadError ? COLORS.red : COLORS.green }} />
+            <span style={{ fontSize: 12, color: COLORS.muted }}>{loadError ? "Offline" : "Live"}</span>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 0, maxWidth: 1200, margin: "0 auto", overflowX: "auto" }}>
+          {["dashboard", "leads", "clients", "activity"].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                padding: "12px 18px", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
+                color: activeTab === tab ? COLORS.gold : COLORS.muted,
+                borderBottom: activeTab === tab ? `2px solid ${COLORS.gold}` : "2px solid transparent",
+                textTransform: "capitalize", letterSpacing: "0.03em",
+              }}
+            >
+              {tab === "clients" ? "Client Health" : tab}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 24px" }}>
+
+        {loadError && (
+          <div style={{ background: `${COLORS.red}22`, border: `1px solid ${COLORS.red}`, borderRadius: 10, padding: "14px 18px", marginBottom: 20, fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Couldn't load leads from Airtable: {loadError}</span>
+            <button onClick={fetchLeads} style={{ background: COLORS.red, color: COLORS.white, border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Retry</button>
+          </div>
+        )}
+
+        {activeTab === "dashboard" && (
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+              {[
+                { label: "Active Leads", value: loadingLeads ? "…" : leads.length, sub: "In pipeline", color: COLORS.gold },
+                { label: "Paying Clients", value: clients.length, sub: "Live accounts", color: COLORS.green },
+                { label: "Open Tasks", value: pendingTasks.length, sub: "Need attention", color: COLORS.red },
+                { label: "MRR", value: "$0", sub: "Projected: $900/mo", color: COLORS.goldBright },
+              ].map(card => (
+                <div key={card.label} style={{ background: COLORS.navy, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "18px 20px" }}>
+                  <div style={{ fontSize: 11, color: COLORS.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>{card.label}</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: card.color, lineHeight: 1 }}>{card.value}</div>
+                  <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 6 }}>{card.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: COLORS.navy, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 24 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: COLORS.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Tasks & Follow-ups</div>
+              </div>
+              {tasks.map(task => (
+                <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                  <input type="checkbox" checked={task.done} onChange={() => toggleTask(task.id)} style={{ width: 16, height: 16, accentColor: COLORS.gold }} />
+                  <span style={{ fontSize: 14, color: task.done ? COLORS.muted : COLORS.white, textDecoration: task.done ? "line-through" : "none" }}>{task.text}</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <input
+                  value={newTask}
+                  onChange={e => setNewTask(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && addTask()}
+                  placeholder="Add a task..."
+                  style={{ flex: 1, background: COLORS.navyDeep, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "9px 12px", fontSize: 13, color: COLORS.white, outline: "none" }}
+                />
+                <button onClick={addTask} style={{ background: COLORS.gold, color: COLORS.navyDeep, border: "none", borderRadius: 6, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Add</button>
+              </div>
+            </div>
+
+            <div style={{ background: COLORS.navy, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "20px 24px" }}>
+              <div style={{ fontSize: 12, color: COLORS.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>Pipeline Snapshot</div>
+              {loadingLeads ? (
+                <div style={{ fontSize: 13, color: COLORS.muted, padding: "12px 0" }}>Loading leads…</div>
+              ) : leads.length === 0 ? (
+                <div style={{ fontSize: 13, color: COLORS.muted, padding: "12px 0" }}>No leads yet.</div>
+              ) : (
+                leads.map(lead => (
+                  <div key={lead.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{lead.name}</div>
+                      <div style={{ fontSize: 12, color: COLORS.muted }}>{lead.business}</div>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: statusColors[lead.status] || COLORS.muted, background: `${statusColors[lead.status] || COLORS.muted}22`, padding: "3px 10px", borderRadius: 20 }}>{lead.status}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "leads" && (
+          <div style={{ display: "grid", gridTemplateColumns: selectedLead ? "1fr 1.2fr" : "1fr", gap: 20 }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Leads</div>
+                <button onClick={fetchLeads} style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>
+                  {loadingLeads ? "Refreshing…" : "Refresh"}
+                </button>
+              </div>
+              {loadingLeads ? (
+                <div style={{ fontSize: 13, color: COLORS.muted }}>Loading leads…</div>
+              ) : leads.length === 0 ? (
+                <div style={{ fontSize: 13, color: COLORS.muted }}>No leads yet — they'll show up here as they come in from the website.</div>
+              ) : (
+                leads.map(lead => (
+                  <div key={lead.id} onClick={() => setSelectedLead(lead)}
+                    style={{ background: selectedLead?.id === lead.id ? COLORS.navyMid : COLORS.navy, border: `1px solid ${selectedLead?.id === lead.id ? COLORS.gold : COLORS.border}`, borderRadius: 10, padding: "16px 18px", marginBottom: 10, cursor: "pointer" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 600 }}>{lead.name}</div>
+                        <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>{lead.business}</div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: statusColors[lead.status] || COLORS.muted, background: `${statusColors[lead.status] || COLORS.muted}22`, padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>{lead.status}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 8 }}>Last contact: {lead.lastContact || "—"} · {lead.value}</div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {selectedLead && (
+              <div style={{ background: COLORS.navy, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 24 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                  <div>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{selectedLead.name}</div>
+                    <div style={{ fontSize: 13, color: COLORS.muted }}>{selectedLead.business}</div>
+                  </div>
+                  <button onClick={() => setSelectedLead(null)} style={{ background: "none", border: "none", color: COLORS.muted, cursor: "pointer", fontSize: 18 }}>×</button>
+                </div>
+
+                <div style={{ fontSize: 12, color: COLORS.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>Status</div>
+                <select
+                  value={selectedLead.status}
+                  onChange={e => changeStatus(e.target.value)}
+                  disabled={savingLead}
+                  style={{ background: COLORS.navyDeep, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "8px 12px", fontSize: 13, color: COLORS.white, outline: "none", marginBottom: 20 }}
+                >
+                  {STATUS_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+
+                <div style={{ fontSize: 12, color: COLORS.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>Notes</div>
+                <div style={{ maxHeight: 260, overflowY: "auto", marginBottom: 14 }}>
+                  {selectedLead.notes.length === 0 ? (
+                    <div style={{ fontSize: 13, color: COLORS.muted }}>No notes yet.</div>
+                  ) : (
+                    selectedLead.notes.map((note, i) => (
+                      <div key={i} style={{ background: COLORS.navyDeep, borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, color: COLORS.gold, marginBottom: 4 }}>{note.date}</div>
+                        <div style={{ fontSize: 13.5, color: COLORS.white, lineHeight: 1.5 }}>{note.text}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    value={newNote}
+                    onChange={e => setNewNote(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && addNote()}
+                    placeholder="Add a note..."
+                    disabled={savingLead}
+                    style={{ flex: 1, background: COLORS.navyDeep, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "10px 12px", fontSize: 13, color: COLORS.white, outline: "none" }}
+                  />
+                  <button onClick={addNote} disabled={savingLead} style={{ background: COLORS.gold, color: COLORS.navyDeep, border: "none", borderRadius: 6, padding: "10px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                    {savingLead ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "clients" && (
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Client Health</div>
+            {clients.length === 0 ? (
+              <div style={{ background: COLORS.navy, border: `1px dashed ${COLORS.border}`, borderRadius: 10, padding: "48px 24px", textAlign: "center" }}>
+                <div style={{ fontSize: 15, color: COLORS.muted, marginBottom: 6 }}>No paying clients yet</div>
+                <div style={{ fontSize: 13, color: COLORS.muted }}>Once leads convert, they'll show up here with their tier, signed date, and status.</div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {activeTab === "activity" && (
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Activity Log</div>
+            <div style={{ background: COLORS.navy, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "20px 24px" }}>
+              {allActivitySorted.map(a => (
+                <div key={a.id} style={{ display: "flex", gap: 16, padding: "12px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                  <div style={{ fontSize: 12, color: COLORS.gold, minWidth: 90 }}>{a.date}</div>
+                  <div style={{ fontSize: 13.5, color: COLORS.white, lineHeight: 1.5 }}>{a.text}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2A3557; border-radius: 3px; }
+      `}</style>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<SteadfastDashboard />);
+</script>
+
+</body>
+</html>
