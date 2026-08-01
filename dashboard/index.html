@@ -110,10 +110,13 @@ const statusColors = {
   "New Lead": COLORS.gold,
   "Contacted": "#5B8DEF",
   "Estimate Sent": "#E0973D",
-  "Client": COLORS.green,
+  "Job Scheduled": "#8B6FD6",
+  "Job Completed": "#5A9B78",
+  "Invoiced": "#D6A85F",
+  "Paid": "#4FAE6E",
 };
 
-const STATUS_OPTIONS = ["New Lead", "Contacted", "Estimate Sent", "Client"];
+const STATUS_OPTIONS = ["New Lead", "Contacted", "Estimate Sent", "Job Scheduled", "Job Completed", "Invoiced", "Paid"];
 
 function notesToText(notes) {
   return notes.map((n) => `${n.date}: ${n.text}`).join("\n");
@@ -209,6 +212,20 @@ function SteadfastDashboard() {
 
     const updated = leads.map(l =>
       l.id === selectedLead.id ? { ...l, status: newStatus } : l
+    );
+    setLeads(updated);
+    setSelectedLead(updated.find(l => l.id === selectedLead.id));
+  }
+
+  async function saveInvoiceAmount(amountStr) {
+    if (!selectedLead) return;
+    const amount = amountStr === "" ? null : parseFloat(amountStr);
+    if (amount !== null && isNaN(amount)) return;
+    const ok = await saveLeadUpdate(selectedLead.id, { invoiceAmount: amount });
+    if (!ok) return;
+
+    const updated = leads.map(l =>
+      l.id === selectedLead.id ? { ...l, invoiceAmount: amount } : l
     );
     setLeads(updated);
     setSelectedLead(updated.find(l => l.id === selectedLead.id));
@@ -387,6 +404,17 @@ function SteadfastDashboard() {
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </select>
+
+                <div style={{ fontSize: 12, color: COLORS.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>Invoice Amount</div>
+                <input
+                  type="number"
+                  defaultValue={selectedLead.invoiceAmount ?? ""}
+                  key={selectedLead.id}
+                  onBlur={e => saveInvoiceAmount(e.target.value)}
+                  placeholder="0.00"
+                  disabled={savingLead}
+                  style={{ background: COLORS.navyDeep, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "8px 12px", fontSize: 13, color: COLORS.white, outline: "none", marginBottom: 20, width: 140 }}
+                />
 
                 <div style={{ fontSize: 12, color: COLORS.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>Notes</div>
                 <div style={{ maxHeight: 260, overflowY: "auto", marginBottom: 14 }}>

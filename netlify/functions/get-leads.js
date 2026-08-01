@@ -63,6 +63,7 @@ exports.handler = async function (event, context) {
         message: f["Message"] || "",
         status: f["Status"] || "New Lead",
         value: f["Value"] || "TBD",
+        invoiceAmount: f["Invoice Amount"] || null,
         lastContact: f["Last Contact"] || f["Date Submitted"] || "",
         notes: notes,
       };

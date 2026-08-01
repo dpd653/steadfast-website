@@ -20,7 +20,7 @@ exports.handler = async function (event, context) {
 
   try {
     const body = JSON.parse(event.body);
-    const { id, status, notes, lastContact } = body;
+    const { id, status, notes, lastContact, invoiceAmount } = body;
 
     if (!id) {
       return { statusCode: 400, body: JSON.stringify({ error: "Missing lead id" }) };
@@ -30,6 +30,7 @@ exports.handler = async function (event, context) {
     if (status !== undefined) fields["Status"] = status;
     if (notes !== undefined) fields["Notes"] = notes;
     if (lastContact !== undefined) fields["Last Contact"] = lastContact;
+    if (invoiceAmount !== undefined) fields["Invoice Amount"] = invoiceAmount;
 
     const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(TABLE_NAME)}/${id}`;
 
