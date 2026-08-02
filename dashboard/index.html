@@ -134,6 +134,9 @@ function SteadfastDashboard() {
   const [newNote, setNewNote] = useState("");
   const [newTask, setNewTask] = useState("");
   const [savingLead, setSavingLead] = useState(false);
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [newLeadForm, setNewLeadForm] = useState({ name: "", business: "", phone: "", message: "" });
+  const [addingLead, setAddingLead] = useState(false);
 
   useEffect(() => {
     fetchLeads();
@@ -229,6 +232,30 @@ function SteadfastDashboard() {
     );
     setLeads(updated);
     setSelectedLead(updated.find(l => l.id === selectedLead.id));
+  }
+
+  async function handleAddLead() {
+    if (!newLeadForm.name.trim()) {
+      alert("Name is required.");
+      return;
+    }
+    setAddingLead(true);
+    try {
+      const res = await fetch("/.netlify/functions/add-lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newLeadForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add lead");
+      setNewLeadForm({ name: "", business: "", phone: "", message: "" });
+      setShowAddLead(false);
+      fetchLeads();
+    } catch (err) {
+      alert("Couldn't add lead: " + err.message);
+    } finally {
+      setAddingLead(false);
+    }
   }
 
   const pendingTasks = tasks.filter(t => !t.done);
@@ -344,9 +371,14 @@ function SteadfastDashboard() {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ fontSize: 18, fontWeight: 700 }}>Leads</div>
-                <button onClick={fetchLeads} style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>
-                  {loadingLeads ? "Refreshing…" : "Refresh"}
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setShowAddLead(true)} style={{ background: COLORS.gold, color: COLORS.navyDeep, border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    + Add Lead
+                  </button>
+                  <button onClick={fetchLeads} style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>
+                    {loadingLeads ? "Refreshing…" : "Refresh"}
+                  </button>
+                </div>
               </div>
               {loadingLeads ? (
                 <div style={{ fontSize: 13, color: COLORS.muted }}>Loading leads…</div>
@@ -473,6 +505,48 @@ function SteadfastDashboard() {
           </div>
         )}
       </div>
+
+      {showAddLead && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div style={{ background: COLORS.navy, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 28, width: 380, maxWidth: "90vw" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>Add Lead</div>
+              <button onClick={() => setShowAddLead(false)} style={{ background: "none", border: "none", color: COLORS.muted, cursor: "pointer", fontSize: 18 }}>×</button>
+            </div>
+
+            {[
+              { key: "name", label: "Name", placeholder: "Full name" },
+              { key: "business", label: "Business / Address", placeholder: "Business name or address" },
+              { key: "phone", label: "Phone", placeholder: "Phone number" },
+            ].map(field => (
+              <div key={field.key} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: COLORS.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6 }}>{field.label}</div>
+                <input
+                  value={newLeadForm[field.key]}
+                  onChange={e => setNewLeadForm({ ...newLeadForm, [field.key]: e.target.value })}
+                  placeholder={field.placeholder}
+                  style={{ width: "100%", background: COLORS.navyDeep, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "9px 12px", fontSize: 13, color: COLORS.white, outline: "none" }}
+                />
+              </div>
+            ))}
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: COLORS.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6 }}>What they need</div>
+              <textarea
+                value={newLeadForm.message}
+                onChange={e => setNewLeadForm({ ...newLeadForm, message: e.target.value })}
+                placeholder="What they're looking for..."
+                rows={3}
+                style={{ width: "100%", background: COLORS.navyDeep, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "9px 12px", fontSize: 13, color: COLORS.white, outline: "none", resize: "vertical", fontFamily: "inherit" }}
+              />
+            </div>
+
+            <button onClick={handleAddLead} disabled={addingLead} style={{ width: "100%", background: COLORS.gold, color: COLORS.navyDeep, border: "none", borderRadius: 6, padding: "11px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              {addingLead ? "Saving…" : "Save Lead"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <style>{`
         * { box-sizing: border-box; }
