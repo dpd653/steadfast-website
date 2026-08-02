@@ -118,6 +118,35 @@ const statusColors = {
 
 const STATUS_OPTIONS = ["New Lead", "Contacted", "Estimate Sent", "Job Scheduled", "Job Completed", "Invoiced", "Paid"];
 
+const OVERDUE_STATUSES = ["New Lead", "Contacted"];
+const OVERDUE_DAYS = 3;
+
+function isOverdue(lead) {
+  if (!OVERDUE_STATUSES.includes(lead.status)) return false;
+  const refDate = lead.lastContact;
+  if (!refDate) return false;
+  const days = (Date.now() - new Date(refDate).getTime()) / (1000 * 60 * 60 * 24);
+  return days > OVERDUE_DAYS;
+}
+
+function exportLeadsToCSV(leads) {
+  const headers = ["Name", "Business", "Phone", "Status", "Value", "Invoice Amount", "Last Contact", "Message"];
+  const rows = leads.map(l => [
+    l.name, l.business, l.phone, l.status, l.value, l.invoiceAmount ?? "", l.lastContact, l.message,
+  ]);
+  const escape = (val) => `"${String(val ?? "").replace(/"/g, '""')}"`;
+  const csv = [headers, ...rows].map(row => row.map(escape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `steadfast-leads-${new Date().toISOString().split("T")[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 function notesToText(notes) {
   return notes.map((n) => `${n.date}: ${n.text}`).join("\n");
 }
@@ -355,7 +384,7 @@ function SteadfastDashboard() {
                 leads.map(lead => (
                   <div key={lead.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${COLORS.border}` }}>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>{lead.name}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{lead.name}{isOverdue(lead) && <span style={{ color: COLORS.red, fontSize: 11, fontWeight: 700, marginLeft: 8 }}>● NEEDS ATTENTION</span>}</div>
                       <div style={{ fontSize: 12, color: COLORS.muted }}>{lead.business}</div>
                     </div>
                     <span style={{ fontSize: 12, fontWeight: 600, color: statusColors[lead.status] || COLORS.muted, background: `${statusColors[lead.status] || COLORS.muted}22`, padding: "3px 10px", borderRadius: 20 }}>{lead.status}</span>
@@ -375,6 +404,9 @@ function SteadfastDashboard() {
                   <button onClick={() => setShowAddLead(true)} style={{ background: COLORS.gold, color: COLORS.navyDeep, border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     + Add Lead
                   </button>
+                  <button onClick={() => exportLeadsToCSV(leads)} disabled={leads.length === 0} style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: leads.length === 0 ? "default" : "pointer" }}>
+                    Export CSV
+                  </button>
                   <button onClick={fetchLeads} style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>
                     {loadingLeads ? "Refreshing…" : "Refresh"}
                   </button>
@@ -385,15 +417,22 @@ function SteadfastDashboard() {
               ) : leads.length === 0 ? (
                 <div style={{ fontSize: 13, color: COLORS.muted }}>No leads yet — they'll show up here as they come in from the website.</div>
               ) : (
-                leads.map(lead => (
+                leads.map(lead => {
+                  const overdue = isOverdue(lead);
+                  return (
                   <div key={lead.id} onClick={() => setSelectedLead(lead)}
-                    style={{ background: selectedLead?.id === lead.id ? COLORS.navyMid : COLORS.navy, border: `1px solid ${selectedLead?.id === lead.id ? COLORS.gold : COLORS.border}`, borderRadius: 10, padding: "16px 18px", marginBottom: 10, cursor: "pointer" }}>
+                    style={{ background: selectedLead?.id === lead.id ? COLORS.navyMid : COLORS.navy, border: `1px solid ${overdue ? COLORS.red : (selectedLead?.id === lead.id ? COLORS.gold : COLORS.border)}`, borderRadius: 10, padding: "16px 18px", marginBottom: 10, cursor: "pointer" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div>
                         <div style={{ fontSize: 15, fontWeight: 600 }}>{lead.name}</div>
                         <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>{lead.business}</div>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: statusColors[lead.status] || COLORS.muted, background: `${statusColors[lead.status] || COLORS.muted}22`, padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>{lead.status}</span>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        {overdue && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, background: `${COLORS.red}22`, padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>NEEDS ATTENTION</span>
+                        )}
+                        <span style={{ fontSize: 11, fontWeight: 600, color: statusColors[lead.status] || COLORS.muted, background: `${statusColors[lead.status] || COLORS.muted}22`, padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>{lead.status}</span>
+                      </div>
                     </div>
                     <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 8 }}>Last contact: {lead.lastContact || "—"} · {lead.value}</div>
                     {lead.message && (
@@ -402,7 +441,8 @@ function SteadfastDashboard() {
                       </div>
                     )}
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
 
