@@ -1,13 +1,15 @@
 // netlify/functions/update-lead.js
-// Writes status changes and new notes back to an existing Airtable lead record.
+// Writes status changes, notes, invoice amount, and urgent flag back to an
+// existing Airtable lead record.
 //
 // Expects a POST body like:
 // {
 //   "id": "recXXXXXXXX",
-//   "status": "Contacted",         // optional
-//   "notes": "2026-07-25: text\n2026-07-20: text",  // optional, full notes field text
-//   "lastContact": "2026-07-25",   // optional
-//   "invoiceAmount": 450           // optional
+//   "status": "Contacted",
+//   "notes": "2026-07-25: text\n2026-07-20: text",
+//   "lastContact": "2026-07-25",
+//   "invoiceAmount": 450,
+//   "urgent": true
 // }
 
 exports.handler = async function (event, context) {
@@ -17,11 +19,11 @@ exports.handler = async function (event, context) {
 
   const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
   const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-  const TABLE_NAME = "Table 1"; // this is your table's actual name inside the Steadfast Leads base
+  const TABLE_NAME = "Table 1";
 
   try {
     const body = JSON.parse(event.body);
-    const { id, status, notes, lastContact, invoiceAmount } = body;
+    const { id, status, notes, lastContact, invoiceAmount, urgent } = body;
 
     if (!id) {
       return { statusCode: 400, body: JSON.stringify({ error: "Missing lead id" }) };
@@ -32,6 +34,7 @@ exports.handler = async function (event, context) {
     if (notes !== undefined) fields["Notes"] = notes;
     if (lastContact !== undefined) fields["Last Contact"] = lastContact;
     if (invoiceAmount !== undefined) fields["Invoice Amount"] = invoiceAmount;
+    if (urgent !== undefined) fields["Urgent"] = urgent;
 
     // Any of these actions count as "you did something about this lead" —
     // reset the overdue-alert flag so it can fire again if it goes stale later.
