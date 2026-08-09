@@ -1,6 +1,6 @@
 // netlify/functions/add-lead.js
 // Adds a manually-entered lead (phone/in-person) to Airtable, same base/table
-// used by submit-lead.js and get-leads.js.
+// used by submit-lead.js and get-leads.js. Also sends a new-lead email alert.
 //
 // Expects a POST body like:
 // {
@@ -9,6 +9,8 @@
 //   "phone": "3301234567",
 //   "message": "Needs a quote for..."
 // }
+
+const { sendAlertEmail } = require("./utils/send-email");
 
 exports.handler = async function (event, context) {
   if (event.httpMethod !== "POST") {
@@ -56,6 +58,22 @@ exports.handler = async function (event, context) {
         statusCode: response.status,
         body: JSON.stringify({ error: "Airtable error", details: data }),
       };
+    }
+
+    // Fire-and-forget email alert — don't fail the request if email sending has an issue.
+    try {
+      await sendAlertEmail({
+        subject: `New Lead: ${name}`,
+        html: `
+          <h2>New lead added manually</h2>
+          <p><strong>Name:</strong> ${name}</p>
+          <p><strong>Business/Address:</strong> ${business || "—"}</p>
+          <p><strong>Phone:</strong> ${phone || "—"}</p>
+          <p><strong>What they need:</strong> ${message || "—"}</p>
+        `,
+      });
+    } catch (emailErr) {
+      console.log("Email alert failed:", emailErr.message);
     }
 
     return {

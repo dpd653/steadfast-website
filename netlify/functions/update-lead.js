@@ -6,7 +6,8 @@
 //   "id": "recXXXXXXXX",
 //   "status": "Contacted",         // optional
 //   "notes": "2026-07-25: text\n2026-07-20: text",  // optional, full notes field text
-//   "lastContact": "2026-07-25"    // optional
+//   "lastContact": "2026-07-25",   // optional
+//   "invoiceAmount": 450           // optional
 // }
 
 exports.handler = async function (event, context) {
@@ -31,6 +32,12 @@ exports.handler = async function (event, context) {
     if (notes !== undefined) fields["Notes"] = notes;
     if (lastContact !== undefined) fields["Last Contact"] = lastContact;
     if (invoiceAmount !== undefined) fields["Invoice Amount"] = invoiceAmount;
+
+    // Any of these actions count as "you did something about this lead" —
+    // reset the overdue-alert flag so it can fire again if it goes stale later.
+    if (status !== undefined || notes !== undefined || lastContact !== undefined) {
+      fields["Overdue Alert Sent"] = false;
+    }
 
     const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(TABLE_NAME)}/${id}`;
 
