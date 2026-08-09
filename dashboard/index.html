@@ -164,12 +164,48 @@ function SteadfastDashboard() {
   const [newTask, setNewTask] = useState("");
   const [savingLead, setSavingLead] = useState(false);
   const [showAddLead, setShowAddLead] = useState(false);
-  const [newLeadForm, setNewLeadForm] = useState({ name: "", business: "", phone: "", message: "" });
+  const [newLeadForm, setNewLeadForm] = useState({ name: "", business: "", phone: "", message: "", urgent: false });
   const [addingLead, setAddingLead] = useState(false);
+  const [alertMode, setAlertMode] = useState("All Leads");
+  const [alertSettingsRecordId, setAlertSettingsRecordId] = useState(null);
+  const [savingAlertMode, setSavingAlertMode] = useState(false);
 
   useEffect(() => {
     fetchLeads();
+    fetchSettings();
   }, []);
+
+  async function fetchSettings() {
+    try {
+      const res = await fetch("/.netlify/functions/get-settings");
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMode(data.alertMode);
+        setAlertSettingsRecordId(data.recordId);
+      }
+    } catch (err) {
+      // Non-critical — dashboard still works if settings fail to load.
+    }
+  }
+
+  async function changeAlertMode(newMode) {
+    setSavingAlertMode(true);
+    try {
+      const res = await fetch("/.netlify/functions/update-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: alertSettingsRecordId, alertMode: newMode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save");
+      setAlertMode(newMode);
+      if (!alertSettingsRecordId && data.record?.id) setAlertSettingsRecordId(data.record.id);
+    } catch (err) {
+      alert("Couldn't save alert setting: " + err.message);
+    } finally {
+      setSavingAlertMode(false);
+    }
+  }
 
   async function fetchLeads() {
     setLoadingLeads(true);
@@ -263,6 +299,19 @@ function SteadfastDashboard() {
     setSelectedLead(updated.find(l => l.id === selectedLead.id));
   }
 
+  async function toggleUrgent() {
+    if (!selectedLead) return;
+    const newVal = !selectedLead.urgent;
+    const ok = await saveLeadUpdate(selectedLead.id, { urgent: newVal });
+    if (!ok) return;
+
+    const updated = leads.map(l =>
+      l.id === selectedLead.id ? { ...l, urgent: newVal } : l
+    );
+    setLeads(updated);
+    setSelectedLead(updated.find(l => l.id === selectedLead.id));
+  }
+
   async function handleAddLead() {
     if (!newLeadForm.name.trim()) {
       alert("Name is required.");
@@ -277,7 +326,7 @@ function SteadfastDashboard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to add lead");
-      setNewLeadForm({ name: "", business: "", phone: "", message: "" });
+      setNewLeadForm({ name: "", business: "", phone: "", message: "", urgent: false });
       setShowAddLead(false);
       fetchLeads();
     } catch (err) {
@@ -302,9 +351,24 @@ function SteadfastDashboard() {
               <div style={{ fontSize: 11, color: COLORS.muted, letterSpacing: "0.05em" }}>RYAN'S DASHBOARD</div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: loadError ? COLORS.red : COLORS.green }} />
-            <span style={{ fontSize: 12, color: COLORS.muted }}>{loadError ? "Offline" : "Live"}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11, color: COLORS.muted, letterSpacing: "0.04em", textTransform: "uppercase" }}>Alerts</span>
+              <select
+                value={alertMode}
+                onChange={e => changeAlertMode(e.target.value)}
+                disabled={savingAlertMode}
+                style={{ background: COLORS.navyDeep, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12, color: COLORS.white, outline: "none" }}
+              >
+                <option value="All Leads">All Leads</option>
+                <option value="Emergency Only">Emergency Only</option>
+                <option value="Off">Off</option>
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: loadError ? COLORS.red : COLORS.green }} />
+              <span style={{ fontSize: 12, color: COLORS.muted }}>{loadError ? "Offline" : "Live"}</span>
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 0, maxWidth: 1200, margin: "0 auto", overflowX: "auto" }}>
@@ -428,6 +492,9 @@ function SteadfastDashboard() {
                         <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>{lead.business}</div>
                       </div>
                       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        {lead.urgent && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.white, background: COLORS.red, padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>🚨 URGENT</span>
+                        )}
                         {overdue && (
                           <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.red, background: `${COLORS.red}22`, padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>NEEDS ATTENTION</span>
                         )}
@@ -450,11 +517,26 @@ function SteadfastDashboard() {
               <div style={{ background: COLORS.navy, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 24 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 700 }}>{selectedLead.name}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                      {selectedLead.name}
+                      {selectedLead.urgent && <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.white, background: COLORS.red, padding: "3px 8px", borderRadius: 20 }}>🚨 URGENT</span>}
+                    </div>
                     <div style={{ fontSize: 13, color: COLORS.muted }}>{selectedLead.business}</div>
                   </div>
                   <button onClick={() => setSelectedLead(null)} style={{ background: "none", border: "none", color: COLORS.muted, cursor: "pointer", fontSize: 18 }}>×</button>
                 </div>
+
+                <button
+                  onClick={toggleUrgent}
+                  disabled={savingLead}
+                  style={{
+                    marginBottom: 20, background: selectedLead.urgent ? COLORS.red : "none",
+                    border: `1px solid ${selectedLead.urgent ? COLORS.red : COLORS.border}`,
+                    color: COLORS.white, borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  {selectedLead.urgent ? "🚨 Marked Urgent — click to clear" : "Mark as Urgent"}
+                </button>
 
                 {selectedLead.message && (
                   <div style={{ marginBottom: 20 }}>
@@ -580,6 +662,16 @@ function SteadfastDashboard() {
                 style={{ width: "100%", background: COLORS.navyDeep, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "9px 12px", fontSize: 13, color: COLORS.white, outline: "none", resize: "vertical", fontFamily: "inherit" }}
               />
             </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={newLeadForm.urgent}
+                onChange={e => setNewLeadForm({ ...newLeadForm, urgent: e.target.checked })}
+                style={{ width: 16, height: 16, accentColor: COLORS.red }}
+              />
+              <span style={{ fontSize: 13, color: COLORS.white }}>🚨 This is urgent</span>
+            </label>
 
             <button onClick={handleAddLead} disabled={addingLead} style={{ width: "100%", background: COLORS.gold, color: COLORS.navyDeep, border: "none", borderRadius: 6, padding: "11px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
               {addingLead ? "Saving…" : "Save Lead"}
