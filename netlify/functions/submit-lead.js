@@ -1,6 +1,8 @@
 // This function receives form submissions from your website
 // and saves them as new records in your Airtable "Steadfast Leads" base.
 
+const { sendAlertEmail } = require("./utils/send-email");
+
 exports.handler = async function (event) {
   // Only allow POST requests (form submissions)
   if (event.httpMethod !== "POST") {
@@ -45,6 +47,23 @@ exports.handler = async function (event) {
         statusCode: 500,
         body: JSON.stringify({ error: "Airtable error", details: errText }),
       };
+    }
+
+    // Fire-and-forget email alert — don't fail the form submission if email sending has an issue.
+    try {
+      await sendAlertEmail({
+        subject: `New Lead: ${data.name || "Unnamed"}`,
+        html: `
+          <h2>New lead from website</h2>
+          <p><strong>Name:</strong> ${data.name || "—"}</p>
+          <p><strong>Business:</strong> ${data.business || "—"}</p>
+          <p><strong>Phone:</strong> ${data.phone || "—"}</p>
+          <p><strong>Email:</strong> ${data.email || "—"}</p>
+          <p><strong>Message:</strong> ${data.message || "—"}</p>
+        `,
+      });
+    } catch (emailErr) {
+      console.log("Email alert failed:", emailErr.message);
     }
 
     return {
