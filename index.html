@@ -118,6 +118,15 @@
   .price-card.featured .price-list li::before { color: var(--gold-bright); }
   .price-note { text-align: center; margin-top: 28px; font-size: 14px; color: var(--muted); }
   @media (max-width: 700px) { .price-grid { grid-template-columns: 1fr; } }
+  .bundle-wrap { max-width: 860px; margin: 56px auto 0; }
+  .bundle-card { background: linear-gradient(135deg, var(--navy) 0%, var(--navy-deep) 100%); border: 1px solid var(--gold); border-radius: 10px; padding: 40px 44px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+  .bundle-label { font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-bright); font-weight: 700; margin-bottom: 8px; }
+  .bundle-title { font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 700; color: var(--white); line-height: 1.15; margin-bottom: 10px; }
+  .bundle-desc { font-size: 14.5px; color: rgba(251,250,247,0.75); line-height: 1.55; max-width: 440px; }
+  .bundle-right { text-align: right; flex-shrink: 0; }
+  .bundle-price { font-family: 'Barlow Condensed', sans-serif; font-size: 34px; font-weight: 700; color: var(--white); line-height: 1; }
+  .bundle-price-note { font-size: 12.5px; color: rgba(251,250,247,0.6); margin-top: 4px; }
+  @media (max-width: 700px) { .bundle-card { flex-direction: column; align-items: flex-start; text-align: left; } .bundle-right { text-align: left; } }
 
   .newsletter { background: var(--navy-mid); color: var(--white); border-radius: 10px; padding: 48px 40px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center; }
   .newsletter h2 { color: var(--white); font-size: 28px; margin-bottom: 12px; }
@@ -261,7 +270,7 @@
           <li>Lead & job dashboard</li>
           <li>After-hours lead capture</li>
           <li>Automated appointment reminders</li>
-          <li>Automated quote & invoice follow-up</li>
+          <li>Stalled-lead alerts (flags jobs sitting too long without follow-up)</li>
           <li>Monthly check-in call</li>
         </ul>
       </div>
@@ -274,13 +283,27 @@
         <ul class="price-list">
           <li>Everything in Standard</li>
           <li>Monthly video business review</li>
-          <li>Review response management</li>
+          <li>Full lead & job history with notes</li>
           <li>Annual in-person business audit</li>
           <li>Same-day support, priority access</li>
         </ul>
       </div>
     </div>
     <p class="price-note">Cancel anytime. Setup fee is waived for early clients — ask when you book your call.</p>
+
+    <div class="bundle-wrap">
+      <div class="bundle-card">
+        <div>
+          <div class="bundle-label">Starting From Scratch? We Build It All</div>
+          <div class="bundle-title">Website + Leads System</div>
+          <div class="bundle-desc">Don't have a website yet? We'll design and build one from the ground up, fully connected to the lead capture system above — so it's ready to go from day one.</div>
+        </div>
+        <div class="bundle-right">
+          <div class="bundle-price">$1,800–$2,200</div>
+          <div class="bundle-price-note">one-time build, then monthly plan applies</div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
